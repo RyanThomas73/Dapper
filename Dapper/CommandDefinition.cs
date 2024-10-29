@@ -22,6 +22,11 @@ namespace Dapper
         }
 
         /// <summary>
+        /// An optional function to allow consumers custom control over how the command is created.
+        /// </summary>
+        public Func<IDbConnection, IDbCommand>? CommandFactory { get; }
+
+        /// <summary>
         /// The command (sql or a stored-procedure name) to execute
         /// </summary>
         public string CommandText { get; }
@@ -80,9 +85,11 @@ namespace Dapper
         /// <param name="commandTimeout">The timeout (in seconds) for this command.</param>
         /// <param name="commandType">The <see cref="CommandType"/> for this command.</param>
         /// <param name="flags">The behavior flags for this command.</param>
+        /// <param name="commandFactory">A factory function to control creation of the <see cref="IDbCommand"/> from a given <see cref="IDbConnection"/></param>
         /// <param name="cancellationToken">The cancellation token for this command.</param>
         public CommandDefinition(string commandText, object? parameters = null, IDbTransaction? transaction = null, int? commandTimeout = null,
                                  CommandType? commandType = null, CommandFlags flags = CommandFlags.Buffered
+                                 , Func<IDbConnection, IDbCommand>? commandFactory = null
                                  , CancellationToken cancellationToken = default
             )
         {
@@ -92,6 +99,7 @@ namespace Dapper
             CommandTimeout = commandTimeout;
             CommandTypeDirect = commandType ?? InferCommandType(commandText);
             Flags = flags;
+            CommandFactory = commandFactory;
             CancellationToken = cancellationToken;
         }
 
@@ -120,7 +128,7 @@ namespace Dapper
 
         internal IDbCommand SetupCommand(IDbConnection cnn, Action<IDbCommand, object?>? paramReader)
         {
-            var cmd = cnn.CreateCommand();
+            var cmd = CommandFactory?.Invoke(cnn) ?? cnn.CreateCommand();
             var init = GetInit(cmd.GetType());
             init?.Invoke(cmd);
             if (Transaction is not null)
